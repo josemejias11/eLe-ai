@@ -25,8 +25,8 @@ Next.js 16 (web/)              FastAPI (api/)
 **Data flow:**
 1. Content is authored in Sanity Studio → published to the Sanity CDN
 2. `page.tsx` fetches module + lessons from Sanity at render time
-3. Learner asks a question → Next.js `/api/chat` → Claude streaming response (SSE)
-4. Quiz request → Next.js `/api/quiz` → Claude returns structured JSON
+3. Learner asks a question → Next.js `/api/chat` → Gemini streaming response (SSE)
+4. Quiz request → Next.js `/api/quiz` → Gemini returns structured JSON
 5. Hotspot visits and quiz results → `/api/progress` → SQLite via Prisma
 6. FastAPI `/chat` and `/quiz` are available for direct RAG queries against ChromaDB
 
@@ -38,7 +38,8 @@ Next.js 16 (web/)              FastAPI (api/)
 - Node.js 20+
 - Python 3.11+
 - A free [Sanity account](https://sanity.io)
-- An Anthropic API key (optional — mock mode works without one)
+- A Google AI Studio API key (for the Next.js AI chat and quiz — mock mode works without one)
+- An Anthropic API key (optional — only needed for the FastAPI RAG backend)
 
 ---
 
@@ -78,7 +79,8 @@ uvicorn main:app --reload
 
 ```env
 SANITY_API_TOKEN="your-editor-token"
-ANTHROPIC_API_KEY="sk-ant-..."
+GOOGLE_AI_STUDIO_API_KEY="your-google-ai-studio-key"
+ANTHROPIC_API_KEY="sk-ant-..."   # optional — only needed for direct FastAPI RAG access
 ```
 
 #### CORS Origins
@@ -198,8 +200,11 @@ Anonymous sessions are identified by a UUID stored in `localStorage` under the k
 
 | Table | Records |
 |-------|---------|
-| `LessonProgress` | Per-session, per-lesson: visited hotspots + completion flag |
-| `QuizAttempt` | Per-session, per-module: score, total, timestamp |
+| `Session` | One row per browser session (UUID primary key) |
+| `LessonProgress` | Per-session, per-lesson: completion flag |
+| `LayerProgress` | Per-session, per-lesson, per-layer: completion flag |
+| `HotspotVisit` | Normalized per-hotspot visit events (label, lessonId, layerId) |
+| `QuizAttempt` | Per-session, per-module: score, total, passed, answers (JSON) |
 
 ---
 
@@ -210,7 +215,8 @@ Anonymous sessions are identified by a UUID stored in `localStorage` under the k
 | `NEXT_PUBLIC_SANITY_PROJECT_ID` | Yes | From sanity.io/manage — set in `web/.env` |
 | `NEXT_PUBLIC_SANITY_DATASET` | No (default: `production`) | Sanity dataset name |
 | `SANITY_API_TOKEN` | Yes (for Studio mutations) | Editor-level Sanity token — set in `web/.env.local` |
-| `ANTHROPIC_API_KEY` | No | Claude API key — omit for mock mode — set in `web/.env.local` |
+| `GOOGLE_AI_STUDIO_API_KEY` | No | Google AI Studio key — powers `/api/chat` and `/api/quiz` in the Next.js frontend; omit for mock mode |
+| `ANTHROPIC_API_KEY` | No | Claude API key — powers the FastAPI RAG routes (`/chat`, `/quiz`) |
 | `DATABASE_URL` | No (default: `file:./dev.db`) | SQLite path — pre-set in `web/.env` |
 
 ---
@@ -222,7 +228,8 @@ Anonymous sessions are identified by a UUID stored in `localStorage` under the k
 | CMS | Sanity (headless) + embedded Studio via `next-sanity` |
 | Frontend | Next.js 16, React 19, TypeScript |
 | Styling | Tailwind CSS v4, `tw-animate-css`, shadcn/ui v4 |
-| AI | Anthropic Claude API (`claude-sonnet-4-6` chat · `claude-opus-4-8` quiz) |
+| AI (frontend) | Google Gemini API (`gemini-2.0-flash` — chat & quiz via Next.js routes) |
+| AI (backend) | Anthropic Claude API (`claude-3-5-sonnet-20241022` — RAG chat & quiz via FastAPI) |
 | Backend | Python FastAPI, ChromaDB (vector store / RAG) |
 | Database | SQLite + Prisma ORM v5 (progress tracking, quiz attempts) |
 | Fonts | MotoSans (custom, loaded from `web/public/fonts/`) |
